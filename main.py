@@ -1,211 +1,171 @@
+from crypt import methods
 from pymongo import MongoClient
-from enum import Enum
 from datetime import datetime
+from flask import Flask, request, json, Response
+from model.course import Course
+from model.discipline import Discipline
+from model.professor import Professor, ProfessorDiscipline
+from model.schedule import Schedule
 
-# uri de conexão com o mongo
+app = Flask(__name__)
+
 uri = "mongodb://admin:admin@localhost:27017"
 
-# Nome do banco
 db_name = "agenda"
 
-# Abre uma conexão com o Mongo
-class Course:
-    def __init__(self, name) -> None:
-        self.name = name
-    def to_dict(self):
-        return {
-            "name": self.name,
-        }
+client = MongoClient(uri)
 
-class Professor:
-       def __init__(self,name, created_at):
-         self.name = name
-         self.created_at = created_at
+db = client[db_name]
 
-       def to_dict(self):
-           return {
-                "name": self.name,
-                "created_at": self.created_at,
-            }
+collection_courses = db.collection["courses"]
+collection_disciplines = db.collection["disciplines"]
+collection_professors = db.collection["professors"]
+collection_professors_disc = db.collection["professors_disciplines"]
+collection_schedules = db.collection["schedules"]
 
-class Discipline:
-    def __init__(self, initials, description, created_at):
-        self.initials = initials
-        self.description = description
-        self.created_at = created_at
 
-    def to_dict(self):
-        return {
-            "initials": self.initials,
-            "description": self.description,
-            "created_at": self.created_at,
-        }
+def error(message):
+    return {
+        "message": message,
+    }
 
-class ProfessorDiscipline:
-    def __init__(self, discipline_id, professor_id, created_at):
-        self.discipline_id = discipline_id
-        self.professor_id = professor_id
-        self.created_at = created_at
-    def to_dict(self):
-        return {
-            "discipline_id": self.discipline_id,
-            "professor_id": self.professor_id,
-            "created_at": self.created_at,
-        }
 
-class WeekDay(Enum):
-    MONDAY = 1
-    TUESDAY = 2
-    WEDNESDAY = 3
-    THURSDAY = 4
-    FRIDAY = 5
-    SATURDAY = 6
+@app.route("/courses", methods=["POST"])
+def create_course():
+    data = request.json
+    count = collection_courses.count_documents({"name": data["name"]})
+    if count > 0:
+        return Response(response=json.dumps(error("Curso já cadastrado.")),
+                        status=500,
+                        mimetype="application/json")
+    else:
+        course = Course(data["name"], datetime.now())
 
-class Schedule:
-    def __init__(self, course_id, year, grade, weekday, professor_discipline_id, time, time_start, time_end, created_at):
-        self.course_id = course_id
-        self.year = year
-        self.grade = grade
-        self.weekday = weekday
-        self.professor_discipline_id = professor_discipline_id
-        self.time = time
-        self.time_start = time_start
-        self.time_end = time_end
-        self.created_at = created_at
+        res = collection_courses.insert_one(course.to_dict())
 
-    def to_dict(self):
-        return {
-            "course_id": self.course_id,
-            "year": self.year,
-            "grade": self.grade,
-            "weekday": self.weekday,
-            "professor_discipline_id": self.professor_discipline_id,
-            "time": self.time,
-            "time_start": self.time_start,
-            "time_end": self.time_end,
-            "created_at": self.created_at,
-        }
+        if res.inserted_id:
+            course.id = str(res.inserted_id)
+            return Response(response=json.dumps(course.to_json()),
+                            status=201,
+                            mimetype="application/json")
 
-class Agenda:
-    def __init__(self, db) -> None:
-        self.db = db
-        self.repo_schedules = db["schedules"]
-        self.repo_professor = db["professors"]
-        self.repo_professor_disc = db["professor_disciplines"]
-        self.repo_course = db["courses"]
-        self.repo_discipline = db["disciplines"]
 
-    def get_courses(self):
-        print("Buscando todos os cursos...")
-        courses = self.repo_course.find()
-        print("id                       nome")
-        for course in courses:
-            print(course["_id"], course["name"])
+@app.route("/disciplines", methods=["POST"])
+def create_discipline():
+    data = request.json
 
-    def create_course(self):
-        name = ""
-        while(name == ""):
-            name = input("Informe o nome do curso: ")
-            if name == "":
-               print("Nome é obrigatório") 
-        course = Course(name)
-        count = self.repo_course.count_documents(course.to_dict())
-        if count > 0:
-            print("Um curso com o esse nome já existe.")
-        else:
-            res = self.repo_course.insert_one(course.to_dict())
-            if res.inserted_id:
-                print("Curso inserido com sucesso: ", res.inserted_id)
+    count = collection_disciplines.count_documents({
+        "course_id": data["course_id"],
+        "initials": data["initials"],
+    })
 
-    def create_professor(self):
-        name = ""
-        while(name == ""):
-            name = input("Informe o nome do professor: ")
-            if name == "":
-               print("Nome é obrigatório") 
-        professor = Professor(name, datetime.now())
+    if count > 0:
+        return Response(response=json.dumps(error("Disciplina já cadastrada para esse curso.")),
+                        status=500,
+                        mimetype="application/json")
 
-        count = self.repo_professor.count_documents({"name": name})
-        if count > 0:
-            print("Um professor com o esse nome já existe.")
-        else:
-            res = self.repo_professor.insert_one(professor.to_dict())
-            if res.inserted_id:
-                print("Professor inserido com sucesso: ", res.inserted_id)
+    else:
+        d = Discipline(data["course_id"], data["initials"],
+                       data["description"], datetime.now())
 
-    def create_discipline(self):
-        name = ""
-        initials = ""
-        while(name == "" or initials == ""):
-            name = input("Informe o nome da disciplina: ")
-            initials = input("Informe as Sigla da disciplina: ")
-            if name == "":
-               print("Nome é obrigatório")
-            if initials == "":
-                print("Sigla é obrigatório")
+        res = collection_disciplines.insert_one(d.to_dict())
 
-        discipline = Discipline(initials, name, datetime.now())
+        if res.inserted_id:
+            d.id = str(res.inserted_id)
+            return Response(response=json.dumps(d.to_json()),
+                            status=201,
+                            mimetype="application/json")
 
-        count = self.repo_discipline.count_documents({"initials": initials, "name": name})
-        if count > 0:
-            print("Uma disciplina com o esse nome já existe.")
-        else:
-            res = self.repo_discipline.insert_one(discipline.to_dict())
-            if res.inserted_id:
-                print("Disciplina inserida com sucesso: ", res.inserted_id)
 
-    def create_professor_discipline(self):
-        print("Selecione um Professor: ")
-        professors = self.repo_professor.find()
-        p_map_ids = {}
-        for i, professor in enumerate(professors):
-            p_map_ids[i] = professor["_id"] 
-            print(f"{i} para {professor['name']}")
+@app.route("/professors", methods=["POST"])
+def create_professor():
+    data = request.json
 
-        index = int(input(""))
-        professor_id = p_map_ids.get(index)
-        d_map_ids = {}
-        for i, professor in enumerate(professors):
-            d_map_ids[i] = professor["_id"] 
-            print(f"{i} para {professor['name']}")
+    count = collection_professors.count_documents({
+        "name": data["name"],
+    })
 
-        index = int(input(""))
-        disciplines_id = d_map_ids.get(index)
+    if count > 0:
+        return Response(response=json.dumps(error("Professor já cadastrado.")),
+                        status=500,
+                        mimetype="application/json")
+    else:
+        professor = Professor(data["name"], datetime.now())
 
-def main():
+        res = collection_professors.insert_one(professor.to_dict())
 
-    print("Selecione um opção: ")
+        if res.inserted_id:
+            professor.id = str(res.inserted_id)
+            return Response(response=json.dumps(professor.to_json()),
+                            status=201,
+                            mimetype="application/json")
 
-    print("1 - Adicionar Novo Curso")
-    print("2 - Adicionar Novo Professor")
-    print("3 - Adicionar Nova Disciplina")
-    print("4 - Adicionar Nova Aula do Professor")
-    print("5 - Adicionar Novo Horário")
-    print("")
-    print("6 - Listar Cursos")
-    print("7 - Listar Professores")
-    print("8 - Listar Disciplinas")
-    print("9 - Listar Horários")
-    print("")
-    print("q - para sair")
 
-    client = MongoClient(uri)
-    db = client[db_name]
-    agenda = Agenda(db)
+@app.route("/professor/disciplines", methods=["POST"])
+def create_professor_discipline():
+    data = request.json
 
-    choice = ""
-    while(choice != "q"):
-        choice = input("")
-        if choice == "1":
-            agenda.create_course()
-        if choice == "2":
-            agenda.create_professor()
-        if choice == "3":
-            agenda.create_discipline()
-        if choice == "4":
-            agenda.create_professor_discipline()
-        if choice == "6":
-            agenda.get_courses()
+    count = collection_professors_disc.count_documents({
+        "course_id": data["course_id"],
+        "professor_id": data["professor_id"],
+        "discipline_id": data["discipline_id"],
+    })
+
+    if count > 0:
+        return Response(response=json.dumps(error("Disciplina já cadastrada.")),
+                        status=500,
+                        mimetype="application/json")
+    else:
+        professor_disc = ProfessorDiscipline(
+            data["course_id"], data["discipline_id"], data["professor_id"], datetime.now())
+
+        res = collection_professors_disc.insert_one(professor_disc.to_dict())
+
+        if res.inserted_id:
+            professor_disc.id = str(res.inserted_id)
+            return Response(response=json.dumps(professor_disc.to_json()),
+                            status=201,
+                            mimetype="application/json")
+
+
+@app.route("/schedules", methods=["POST"])
+def create_schedules():
+    data = request.json
+
+    count = collection_schedules.count_documents({
+        "course_id": data["course_id"],
+        "year": data["year"],
+        "grade": data["grade"],
+        "weekday": data["weekday"],
+        "professor_discipline_id": data["professor_discipline_id"],
+        "time": data["time"],
+        "time_start": data["time_start"],
+        "time_end": data["time_end"]
+    })
+
+    if count > 0:
+        return Response(response=json.dumps(error("Horário já cadastrado.")),
+                        status=500,
+                        mimetype='application/json')
+    else:
+        sched = Schedule(data["course_id"],
+                         data["year"],
+                         data["grade"],
+                         data["weekday"],
+                         data["professor_discipline_id"],
+                         data["time"],
+                         data["time_start"],
+                         data["time_end"],
+                         datetime.now(),)
+
+        res = collection_schedules.insert_one(sched.to_dict())
+
+        if res.inserted_id:
+            sched.id = str(res.inserted_id)
+            return Response(response=json.dumps(sched.to_json()),
+                            status=201,
+                            mimetype="application/json")
+
 
 if __name__ == "__main__":
-    main()
+    app.run()
