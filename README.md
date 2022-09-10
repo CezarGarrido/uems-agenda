@@ -1,5 +1,10 @@
 # uems-agenda
 
+## Instalação
+
+```
+$ git clone https://github.com/CezarGarrido/uems-agenda.git
+```
 
 ## Preparando o ambiente
 
