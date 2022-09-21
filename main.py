@@ -5,6 +5,8 @@ from model.course import Course
 from model.discipline import Discipline
 from model.professor import Professor, ProfessorDiscipline
 from model.schedule import Schedule
+from bson.objectid import ObjectId
+import re
 
 app = Flask(__name__)
 
@@ -75,6 +77,30 @@ def create_discipline():
                             status=201,
                             mimetype="application/json")
 
+#632a57636fee6fdf450a19cc
+@app.route("/disciplines", methods=["PUT"])
+def atualize_discipline():
+    data = request.json
+
+    if (not re.search(r'[a-f\d]{24}', data["id"])):
+        return Response(response=json.dumps(error("Id invalido.")),
+                                status=400 ,
+                                mimetype="application/json")
+
+    _id = ObjectId(data["id"])
+    count = collection_disciplines.count_documents({"_id": _id})
+    
+    if count != 1:
+       return Response(response=json.dumps(error("Disciplina não cadastrada.")),
+                                status=404 ,
+                                mimetype="application/json")
+    else:
+        
+        newvalues = { "$set": { 'initials': data["initials"], "description": data["description"] } }
+        collection_disciplines.update_one({"_id":_id}, newvalues)    
+           
+        return Response(response=json.dumps(newvalues),
+                            mimetype="application/json")
 
 @app.route("/professors", methods=["POST"])
 def create_professor():
