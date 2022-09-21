@@ -79,7 +79,7 @@ def create_discipline():
 
 #632a57636fee6fdf450a19cc
 @app.route("/disciplines", methods=["PUT"])
-def atualize_discipline():
+def update_discipline():
     data = request.json
 
     if (not re.search(r'[a-f\d]{24}', data["id"])):
