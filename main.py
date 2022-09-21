@@ -77,9 +77,9 @@ def create_discipline():
                             status=201,
                             mimetype="application/json")
 
-#632a57636fee6fdf450a19cc
+
 @app.route("/disciplines", methods=["PUT"])
-def update_discipline():
+def atualize_discipline():
     data = request.json
 
     if (not re.search(r'[a-f\d]{24}', data["id"])):
@@ -88,17 +88,22 @@ def update_discipline():
                                 mimetype="application/json")
 
     _id = ObjectId(data["id"])
-    count = collection_disciplines.count_documents({"_id": _id})
+    id_exist = collection_disciplines.count_documents({"_id": _id})
+    data_allready_exist = collection_disciplines.count_documents({"$or": [{"initials": data["initials"]},
+                                                {"description": data["description"]}] })
     
-    if count != 1:
+    if not id_exist:
        return Response(response=json.dumps(error("Disciplina não cadastrada.")),
                                 status=404 ,
                                 mimetype="application/json")
-    else:
-        
+    elif data_allready_exist:
+        return Response(response=json.dumps(error("Inicial ou nome de disciplina já existem.")),
+                                status=400 ,
+                                mimetype="application/json")
+
+    else:        
         newvalues = { "$set": { 'initials': data["initials"], "description": data["description"] } }
-        collection_disciplines.update_one({"_id":_id}, newvalues)    
-           
+        collection_disciplines.update_one({"_id":_id}, newvalues)          
         return Response(response=json.dumps(newvalues),
                             mimetype="application/json")
 
