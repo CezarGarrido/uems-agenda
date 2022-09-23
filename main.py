@@ -1,4 +1,4 @@
-from crypt import methods
+#from crypt import methods
 from pymongo import MongoClient
 from datetime import datetime
 from flask import Flask, request, json, Response
@@ -9,11 +9,11 @@ from model.schedule import Schedule
 
 app = Flask(__name__)
 
-uri = "mongodb://admin:admin@localhost:27017"
+uri = "localhost"
 
 db_name = "agenda"
 
-client = MongoClient(uri)
+client = MongoClient(uri, 27017)
 
 db = client[db_name]
 
