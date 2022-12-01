@@ -6,7 +6,6 @@ from model.discipline import Discipline
 from model.professor import Professor, ProfessorDiscipline
 from model.schedule import Schedule
 from bson.objectid import ObjectId
-import re
 
 app = Flask(__name__)
 
@@ -147,6 +146,29 @@ def create_professor():
             professor.id = str(res.inserted_id)
             return Response(response=json.dumps(professor.to_json()),
                             status=201,
+                            mimetype="application/json")
+
+@app.route("/professors", methods=["PUT"])
+def atualzie_professor():
+    data = request.json
+
+    _id = ObjectId(data["id"])
+    id_exist = collection_professors.count_documents({"_id": _id})
+    data_allready_exist = collection_professors.count_documents({"name": data["name"]})
+
+    if not id_exist:
+       return Response(response=json.dumps(error("Professor não existe!")),
+                                status=404 ,
+                                mimetype="application/json")
+    elif data_allready_exist:#precisa?
+        return Response(response=json.dumps(error("Nome já cadastrado.")),
+                                status=400 ,
+                                mimetype="application/json")
+
+    else:
+        newvalue = { "$set": { 'name': data["name"]} }
+        collection_professors.update_one({"_id":_id}, newvalue)
+        return Response(response=json.dumps(newvalue),
                             mimetype="application/json")
 
 
