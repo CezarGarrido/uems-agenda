@@ -5,14 +5,16 @@ from model.course import Course
 from model.discipline import Discipline
 from model.professor import Professor, ProfessorDiscipline
 from model.schedule import Schedule
+from bson.objectid import ObjectId
+import re
 
 app = Flask(__name__)
 
-uri = "localhost:27017"
+uri = "localhost"
 
 db_name = "agenda"
 
-client = MongoClient(uri)
+client = MongoClient(uri, 27017)
 
 db = client[db_name]
 
@@ -48,6 +50,25 @@ def create_course():
                             status=201,
                             mimetype="application/json")
 
+@app.route("/courses", methods=["PUT"])
+def upadate_course():
+    data = request.json
+    #verifica se existe o nome
+    count = collection_courses.count_documents({"name": data["name"]})
+    if count > 0:
+        #verifica se existe o novo nome
+        count = collection_courses.count_documents({"name": data["new_name"]})
+        if count > 0:
+            return Response(response=json.dumps(error("Curso " + data["new_name"] + " já cadastrado!")),
+                            mimetype="application/json")
+        else:
+            collection_courses.update_one({"name": data["name"]}, {"$set": {"name": data["new_name"]}})
+            return Response(response=json.dumps("Curso " + data["name"] + " alterado para " + data["new_name"]),
+                            status=500,
+                            mimetype="application/json")               
+    else:               
+        return Response(response=json.dumps(error("Curso não existe!")),
+                            mimetype="application/json")
 
 @app.route("/disciplines", methods=["POST"])
 def create_discipline():
@@ -75,6 +96,35 @@ def create_discipline():
                             status=201,
                             mimetype="application/json")
 
+
+@app.route("/disciplines", methods=["PUT"])
+def atualize_discipline():
+    data = request.json
+
+    if (not re.search(r'[a-f\d]{24}', data["id"])):
+        return Response(response=json.dumps(error("Id invalido.")),
+                                status=400 ,
+                                mimetype="application/json")
+
+    _id = ObjectId(data["id"])
+    id_exist = collection_disciplines.count_documents({"_id": _id})
+    data_allready_exist = collection_disciplines.count_documents({"$or": [{"initials": data["initials"]},
+                                                {"description": data["description"]}] })
+    
+    if not id_exist:
+       return Response(response=json.dumps(error("Disciplina não cadastrada.")),
+                                status=404 ,
+                                mimetype="application/json")
+    elif data_allready_exist:
+        return Response(response=json.dumps(error("Inicial ou nome de disciplina já existem.")),
+                                status=400 ,
+                                mimetype="application/json")
+
+    else:        
+        newvalues = { "$set": { 'initials': data["initials"], "description": data["description"] } }
+        collection_disciplines.update_one({"_id":_id}, newvalues)          
+        return Response(response=json.dumps(newvalues),
+                            mimetype="application/json")
 
 @app.route("/professors", methods=["POST"])
 def create_professor():
@@ -192,4 +242,4 @@ def create_schedules():
 
 
 if __name__ == "__main__":
-    app.run()
+    app.run(debug=True)
