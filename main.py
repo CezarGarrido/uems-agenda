@@ -50,6 +50,25 @@ def create_course():
                             status=201,
                             mimetype="application/json")
 
+@app.route("/courses", methods=["PUT"])
+def upadate_course():
+    data = request.json
+    #verifica se existe o nome
+    count = collection_courses.count_documents({"name": data["name"]})
+    if count > 0:
+        #verifica se existe o novo nome
+        count = collection_courses.count_documents({"name": data["new_name"]})
+        if count > 0:
+            return Response(response=json.dumps(error("Curso " + data["new_name"] + " já cadastrado!")),
+                            mimetype="application/json")
+        else:
+            collection_courses.update_one({"name": data["name"]}, {"$set": {"name": data["new_name"]}})
+            return Response(response=json.dumps("Curso " + data["name"] + " alterado para " + data["new_name"]),
+                            status=500,
+                            mimetype="application/json")               
+    else:               
+        return Response(response=json.dumps(error("Curso não existe!")),
+                            mimetype="application/json")
 
 @app.route("/disciplines", methods=["POST"])
 def create_discipline():
@@ -198,4 +217,4 @@ def create_schedules():
 
 
 if __name__ == "__main__":
-    app.run()
+    app.run(debug=True)
