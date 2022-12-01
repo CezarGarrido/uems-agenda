@@ -1,4 +1,3 @@
-from crypt import methods
 from pymongo import MongoClient
 from datetime import datetime
 from flask import Flask, request, json, Response
@@ -6,10 +5,11 @@ from model.course import Course
 from model.discipline import Discipline
 from model.professor import Professor, ProfessorDiscipline
 from model.schedule import Schedule
+from bson.objectid import ObjectId
 
 app = Flask(__name__)
 
-uri = "mongodb://admin:admin@localhost:27017"
+uri = "localhost:27017"
 
 db_name = "agenda"
 
@@ -164,6 +164,29 @@ def create_schedules():
             sched.id = str(res.inserted_id)
             return Response(response=json.dumps(sched.to_json()),
                             status=201,
+                            mimetype="application/json")
+
+@app.route("/schedules", methods=["DELETE"])
+def delete_schedules():
+    data = request.json
+    _id = ObjectId(data["id"])
+    id_exist = collection_schedules.count_documents({"_id": _id})
+
+
+    if id_exist:
+        deleted = collection_schedules.find_one({
+            "_id": _id
+        })
+        deleted = collection_schedules.delete_one({
+            "_id": _id
+        })
+
+        return Response(response=json.dumps(deleted),
+                            status=201,
+                            mimetype="application/json")
+    else:
+        return Response(response=json.dumps(error("Horario invalido")),
+                            status=400,
                             mimetype="application/json")
 
 
