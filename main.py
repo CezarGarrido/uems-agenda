@@ -6,11 +6,17 @@ from model.discipline import Discipline
 from model.professor import Professor, ProfessorDiscipline
 from model.schedule import Schedule
 from bson.objectid import ObjectId
+import redis
+
+#redis connection
+r = redis.Redis(host='localhost', port=6379, db=0)
 
 app = Flask(__name__)
 
-uri = "localhost"
+# Exemplo com usuario e senha
+# uri = "mongodb://admin:admin@localhost:27017"
 
+uri = "localhost"
 db_name = "agenda"
 
 client = MongoClient(uri, 27017)
@@ -318,6 +324,66 @@ def atualize_schedules():
         return Response(response=json.dumps(sched.to_json()),
                             status = 200,
                             mimetype="application/json")
+
+
+@app.route("/schedules", methods=["GET"])
+def show_schedules():
+    _id_course = request.args.get('course_id')
+    grade = request.args.get('grade')
+
+    if r.exists(f'{_id_course}-{grade}'):
+        print("Memoria armazenada no cache usada!")
+        return Response(response=r.get(f'{_id_course}-{grade}'),
+                        status=200,
+                        mimetype="application/json")
+
+    schedules = collection_schedules.find({"course_id": _id_course, "grade": grade})
+
+    if not schedules:
+        return Response(response=json.dumps(error("Horário não encontrado!")),
+                                status=404,
+                                mimetype="application/json")
+    else:
+        new_schedules = []
+        for sched in schedules:
+            schedule = {}
+
+            schedule['professor_name'], schedule['discipline_initials'], schedule['discipline_description'] = find_discipline_professor(sched['professor_discipline_id'])
+
+            schedule['course_name'] = collection_courses.find_one(ObjectId(_id_course))['name']
+
+            schedule["year"] = sched["year"]
+            schedule["grade"] = sched["grade"]
+            schedule["weekday"] = sched["weekday"]
+            schedule["time"] = sched["time"]
+            schedule["time_start"] = sched["time_start"]
+            schedule["time_end"] = sched["time_end"]
+
+            new_schedules.append(schedule.copy()) 
+
+        #para ser usado em pesquisas futuras
+        r.set(f'{_id_course}-{grade}', json.dumps({"schedules_list": new_schedules}))
+
+        return Response(response=json.dumps({"schedules_list": new_schedules}),
+                        status=200,
+                        mimetype="application/json")
+
+#Funções Auxiliares 
+def find_discipline_professor(id):
+    _id = ObjectId(id)
+    ids = collection_professors_disc.find_one(_id)
+
+    p_id = ObjectId(ids['professor_id'])
+    professor = collection_professors.find_one(p_id)
+    del professor['_id']
+
+    d_id = ObjectId(ids['discipline_id'])
+    discipline = collection_disciplines.find_one(d_id)
+    discipline_initials = discipline['initials']
+    discipline_description = discipline['description']
+
+    return (professor, discipline_initials, discipline_description)
+
 
 if __name__ == "__main__":
     app.run(debug=True)
