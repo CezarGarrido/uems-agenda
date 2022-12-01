@@ -176,6 +176,31 @@ def create_professor_discipline():
                             status=201,
                             mimetype="application/json")
 
+@app.route("/professor/disciplines", methods=["DELETE"])
+def delete_professor_discipline():
+    data = request.json
+
+    count = collection_professors_disc.count_documents({
+        "course_id": data["course_id"],
+        "professor_id": data["professor_id"],
+        "discipline_id": data["discipline_id"],
+    })
+
+    if count:
+        deleted = collection_professors_disc.delete_one({
+            #"course_id": data["course_id"], # Precisa?
+            "professor_id": data["professor_id"],
+            "discipline_id": data["discipline_id"],
+        })
+        return Response(response=json.dumps(data),
+                            status=201,
+                            mimetype="application/json")
+    else:
+        return Response(response=json.dumps(error("Professor ou disciplina invalidos")),
+                            status=400,
+                            mimetype="application/json")
+        
+
 
 @app.route("/schedules", methods=["POST"])
 def create_schedules():
