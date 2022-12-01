@@ -262,6 +262,36 @@ def create_schedules():
                             status=201,
                             mimetype="application/json")
 
+@app.route("/schedules", methods=["PUT"])
+def atualize_schedules():
+    data = request.json
 
+    _id = ObjectId(data["id"])
+    id_exist = collection_schedules.count_documents({"_id": _id})
+
+    if not id_exist:
+       return Response(response=json.dumps(error("Horario não cadastrado.")),
+                                status=404 ,
+                                mimetype="application/json")
+    else:
+        sched = Schedule(data["course_id"],
+                         data["year"],
+                         data["grade"],
+                         data.get("weekday"),
+                         data["professor_discipline_id"],
+                         data["time"],
+                         data["time_start"],
+                         data["time_end"],
+                         ' ')
+        new_values = sched.to_dict()
+
+        new_values.pop('created_at') 
+
+        new_values = { "$set":  new_values}
+        collection_schedules.update_one({"_id":_id}, new_values)
+
+        return Response(response=json.dumps(sched.to_json()),
+                            status = 200,
+                            mimetype="application/json")
 if __name__ == "__main__":
     app.run(debug=True)
