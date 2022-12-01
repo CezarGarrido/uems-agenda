@@ -262,6 +262,31 @@ def create_schedules():
                             status=201,
                             mimetype="application/json")
 
+
+@app.route("/schedules", methods=["DELETE"])
+def delete_schedules():
+    data = request.json
+    _id = ObjectId(data["id"])
+    id_exist = collection_schedules.count_documents({"_id": _id})
+
+
+    if id_exist:
+        deleted = collection_schedules.find_one({
+            "_id": _id
+        })
+        deleted = collection_schedules.delete_one({
+            "_id": _id
+        })
+
+        return Response(response=json.dumps(deleted),
+                            status=201,
+                            mimetype="application/json")
+    else:
+        return Response(response=json.dumps(error("Horario invalido")),
+                            status=400,
+                            mimetype="application/json")
+
+
 @app.route("/schedules", methods=["PUT"])
 def atualize_schedules():
     data = request.json
@@ -293,5 +318,6 @@ def atualize_schedules():
         return Response(response=json.dumps(sched.to_json()),
                             status = 200,
                             mimetype="application/json")
+
 if __name__ == "__main__":
     app.run(debug=True)
